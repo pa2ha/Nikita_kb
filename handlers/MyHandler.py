@@ -25,6 +25,13 @@ nikita_kb = get_callback_btns(btns={"Добавить брак": "Брак",
                                     "Добавить 1 новый артикул в бд": "new",
                                     "Скачать эксельку с браком": "dwn",
                                     "Для импорта артикулов через эксель, просто скинь файл": "mda"})
+size_kb = get_callback_btns(btns={"70B": "size_70B",
+                                  "75B": "size_75B",
+                                  "80B": "size_80B",
+                                  "85B": "size_85B",
+                                  "75C": "size_75C",
+                                  "80C": "size_80C",
+                                  "Отменить текущее дейсвтие": "Отмена"})
 
 # @my_first_handler.message(CommandStart())
 # async def start_cmd(message: types.Message):
@@ -46,6 +53,7 @@ class AddProduct(StatesGroup):
     #Шаги состояний
     articul = State()
     photo = State()
+    size = State()
 
 
 @my_first_handler.callback_query(F.data.startswith("Отмена"))
@@ -81,13 +89,34 @@ async def add_name(message: types.Message, state: FSMContext, session: AsyncSess
         return await message.answer("Вот какие похожие артикулы есть", reply_markup=get_callback_btns(btns=response))
     if not exist:
         return await message.answer(f"Нет ничего похожего на {message.text}", reply_markup=add_kb)
-                                    
+
+
+@my_first_handler.message(AddProduct.articul)
+async def add__wrong_art(message: types.Message, state: FSMContext):
+    await message.answer("Введите часть артикула", reply_markup=add_kb)
+
+
 @my_first_handler.callback_query(AddProduct.articul, F.data.startswith("art$"))
 async def add_name_callback(callback: types.CallbackQuery,  state: FSMContext):
     product_art = callback.data.split("$")[-1]
     await state.update_data(article=product_art)
+    if product_art in ["MLS113_White", "MLS113_Beige", "MLS113_Black"]:
+        await callback.message.edit_text("Выберите размер", reply_markup=size_kb)
+        return await state.set_state(AddProduct.size)
     await callback.message.edit_text("Есть такой артикул. Теперь пришлите фото брака", reply_markup=add_kb)
     await state.set_state(AddProduct.photo)
+
+
+@my_first_handler.callback_query(AddProduct.size,)
+async def add_size_callback(callback: types.CallbackQuery,  state: FSMContext):
+    product_size = callback.data.split("_")[-1]
+    data = await state.get_data()
+    article = data.get('article')
+    article = f"{article}  {product_size}"
+    await state.update_data(article=article)
+    await callback.message.edit_text("Размер добавлен. Теперь пришлите фото брака", reply_markup=add_kb)
+    await state.set_state(AddProduct.photo)
+
 
 
 @my_first_handler.message(AddProduct.photo, F.photo)
@@ -170,7 +199,7 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
 @my_first_handler.message(~(F.text | F.photo))
 async def handle_document(message: types.Message, session: AsyncSession):
     if message.from_user.id != 428270889:
-        await message.answer("А А А, Нельзя")
+        return await message.answer("А А А, Нельзя")
 
     document = message.document
 
